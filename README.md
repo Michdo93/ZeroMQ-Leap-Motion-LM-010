@@ -1,29 +1,54 @@
-# ZeroMQ Leap Motion LM-010 Bridge
+# ZeroMQ Leap Motion LM-010 for Ubuntu (Python)
 
-For the original Leap Motion Controller LM-010. The bridge forwards the tracking service's JSON frames (hands, fingers, bones, frame data) and reported gestures over ZeroMQ PUB/SUB. It sends interpreted tracking output, not raw infrared pixels. Hardware: LM-010 over USB, Windows, and a Leap Motion Orion tracking service exposing its legacy local WebSocket API. This proprietary runtime/SDK is not bundled.
+Streams hand-tracking frames from the original Leap Motion Controller LM-010 using Ultraleap's LeapC Python bindings and ZeroMQ PUB/SUB. Frames include hand/palm position and orientation, velocity, pinch/grab measures, fingers and bones. These are tracking-service outputs, not raw infrared images. The bindings require the separately installed Ultraleap tracking service and SDK.
 
-## Install
+## Install device service and Python bindings
 
-Install and start the Leap tracking service separately; check that it recognizes the device. Install Python 3.10+, then in PowerShell at repo root:
+Install the Ubuntu-compatible Ultraleap Gemini Hand Tracking Service/SDK from Ultraleap's official download portal. Verify the service is running and that the LM-010 is detected. The SDK is not redistributed here. LeapC Python bindings are official open-source bindings but currently provide prebuilt Linux x64 extension for Python 3.8; on other Ubuntu Python versions build the CFFI component locally against the installed Leap SDK.
 
-    py -3 -m venv .venv
-    .venv\Scripts\Activate.ps1
-    python -m pip install --upgrade pip
+Example source build (Ubuntu x64):
+
+    sudo apt update
+    sudo apt install -y git build-essential python3-dev python3-venv
+    git clone https://github.com/ultraleap/leapc-python-bindings.git
+    cd leapc-python-bindings
+    python3 -m venv .venv
+    source .venv/bin/activate
+    python -m pip install --upgrade pip build cffi
+    python -m pip install -r requirements.txt
+    export LEAPSDK_INSTALL_LOCATION=/usr/lib/ultraleap-hand-tracking-service
+    python -m build leapc-cffi
+    python -m pip install leapc-cffi/dist/leapc_cffi-0.0.1.tar.gz
+    python -m pip install -e leapc-python-api
+    cd /path/to/ZeroMQ-Leap-Motion-LM-010
+    python -m venv --system-site-packages .venv
+    source .venv/bin/activate
     python -m pip install -r requirements.txt
 
-The bridge defaults to ws://127.0.0.1:6437/v6.json and PUB tcp://*:5555. Legacy WebSocket availability depends on the Leap service version/configuration. Current Ultraleap documentation favors LeapC; if the local service lacks this legacy endpoint, replace the input adapter with LeapC and retain the ZeroMQ output contract.
+If using Ultraleap's supported Python 3.8 prebuilt extension, install the binding packages as instructed by their README; otherwise compile as above. For a non-default SDK location export LEAPSDK_INSTALL_LOCATION to that SDK folder. Linux x64 default is /usr/lib/ultraleap-hand-tracking-service.
 
 ## Run and test
 
-Terminal A: .venv\Scripts\python.exe src\leap_bridge.py
-Terminal B: .venv\Scripts\python.exe examples\monitor.py
+Terminal A:
 
-Move hands above the device; monitor should display leap.frame and available leap.gesture events. Ctrl+C stops processes. Start subscriber first.
+    source .venv/bin/activate
+    python src/leap_bridge.py
 
-Each PUB message contains multipart frames: topic UTF-8 then JSON UTF-8. Topics are leap.frame, leap.gesture, leap.status. The bridge adds schema and receive time while retaining service fields. Frames are not durable; PUB/SUB may lose data on connect or overload.
+Terminal B:
 
-## Configure and personalize
+    source .venv/bin/activate
+    python examples/monitor.py
 
-Set PowerShell variables before start: LEAP_WS_URL overrides WebSocket address; ZMQ_PUB_ENDPOINT changes the bridge bind. If changing the port, edit examples/monitor.py endpoint to match. Edit the message callback to filter fields or emit custom events. The bridge requests gesture reporting. No LM-010 brightness adjustment is exposed in this API. Remote data should use CURVE and authorized peers rather than an open TCP endpoint.
+Move hands over the controller. The monitor should show leap.frame records; startup/device changes use leap.status. Stop with Ctrl+C. Start the subscriber first.
 
-Troubleshooting: no WebSocket means check Leap service and local port 6437; no hands means check device recognized, hand visibility and foreground/background policy; address-in-use means choose a free port on both peers. References: https://docs.ultraleap.com/hand-tracking/index.html ; https://docs.ultraleap.com/api-reference/tracking-api/leapc-guide/leap-concepts.html ; https://developer.leapmotiontechnology.com/developer-sub/documentation
+## Message format and configuration
+
+Messages are multipart: UTF-8 topic then compact UTF-8 JSON. Default topic output binds tcp://*:5555; subscriber connects to tcp://127.0.0.1:5555. Change publisher address with ZMQ_PUB_ENDPOINT and update examples/monitor.py to match. Frame includes ids, hand type, palm vectors/quaternion, finger extension and four bone segments. Coordinates are Leap-space units (millimeters); time values are service units. PUB/SUB is lossy during startup or overload.
+
+To customize, edit hand_json() to select/extend fields or Listener.on_tracking_event() to derive new events. Pinch/grab strengths are included for custom gesture classification. The bridge intentionally avoids raw camera image transfer; LeapC has separate image-event capabilities that can be added if needed. For remote transfer, bind only on trusted interfaces and add CURVE authentication/encryption.
+
+## Troubleshooting
+
+Import error for leapc_cffi: ensure service SDK installed, LEAPSDK_INSTALL_LOCATION correct, and compile CFFI for active Python ABI. No connection/device: check the service and USB permissions; reconnect after adding required udev rules. No frames: verify device orientation and hand visibility. Port conflict: choose a free PUB bind and matching subscriber connect.
+
+Upstream binding installation and supported Python ABIs: https://github.com/ultraleap/leapc-python-bindings . LeapC provides access to tracking, image and status events: https://docs.ultraleap.com/api-reference/tracking-api/leapc-guide.html .
