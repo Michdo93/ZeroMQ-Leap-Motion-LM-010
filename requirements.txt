@@ -1,1 +1,2 @@
-pyzmq>=25,<28
+pyzmq>=25
+# LeapC bindings (leap, leapc_cffi) are installed separately, see README
