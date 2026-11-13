@@ -2,7 +2,7 @@
 
 Streams hand tracking data of the original **Leap Motion Controller (LM-010)** with **ZeroMQ** – ~110 frames per second, sub-millisecond latency, any number of consumers, plus a control channel. Uses Ultraleap's official LeapC Python bindings (Gemini tracking service).
 
-Companion example of the book *From Zero to Hero – ZeroMQ in Python meistern* (chapter "Two things MQTT cannot do (well)").
+Companion example of the book *From Zero to Hero – ZeroMQ in Python meistern* (chapter 20 "Praxis: Leap Motion und Kinect").
 
 ```
                        PUB tcp://*:5555                       PUB tcp://*:5557
